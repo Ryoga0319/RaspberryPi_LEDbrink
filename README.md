@@ -9,5 +9,5 @@
 - 電子メールで報告する  
 
 ### 実際  
-- スライドを読んでデバイスドライバとMakefileを作成したが、うまく行かなかった  
-- /sys/class/gpioを操作してLEDを光らせたのでそれを代わりに提出する
+- スライドを読んでデバイスドライバとMakefileを作成した(myled.c , Makefile)が、うまく行かなかった  
+- /sys/class/gpioを操作してLEDを光らせた(ledbrink.sh)のでそれを代わりに提出する
