@@ -5,58 +5,86 @@
 #include <asm/uaccess.h>
 #include <linux/io.h>
 
-MODULE_AUTHOR("Ryuichi Ueda");
-MODULE_REVISER("KATO Masahiro");
+MODULE_AUTHOR("kato-masahiro");
 MODULE_DESCRIPTION("driver for LED control");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("0.1");
 
+/*
+At first,this program was written by Ryuichi Ueda.
+And,cloned from "https://github.com/ryuichiueeda/robosys_device_drivers".
+Then,it was revised by kato-masahiro.
+*/
+
 static dev_t dev;
 static struct cdev cdv;
 static struct class *cls = NULL;
+
 static volatile u32 *gpio_base = NULL;
 
 static ssize_t led_write(struct file* filp, const char* buf, size_t count, loff_t* pos)
 {
+    int cnt = 0;
+    int i,ii,iii;
+    int max = 10000;
 	char c;
 	if(copy_from_user(&c,buf,sizeof(char)))
 		return -EFAULT;
 
-    gpio_base[10] = 1 << 25;
+    if (c == '1')
+    {
+        for(i = 0 ; i < max ; ++i)
+        {
+            for (ii = 0;ii < i ; ++ii)
+            {
+                gpio_base[7] = 1 << 25; 
+            }
 
-    return 1;
-}
+            for(iii = 0; iii < (max-i) ; ++iii)
+            {
+                gpio_base[10] = 1 << 25;
+            }
+        }
 
-static ssize_t sushi_read(struct file* filp, char* buf, size_t count, loff_t* pos)
-{
-	int size = 0;
-	char sushi[] = {0xF0,0x9F,0x8D,0xA3,0x0A};
-	if(copy_to_user(buf+size,(const char *)sushi, sizeof(sushi))){
-		printk( KERN_INFO "sushi : copy_to_user failed\n" );
-		return -EFAULT;
-	}
-	size += sizeof(sushi);
+        for(i = 0 ; i < max ; ++i)
+        {
+            for (ii = 0;ii < i ; ++ii)
+            {
+                gpio_base[10] = 1 << 25; 
+            }
 
-	return size;
+            for(iii = 0; iii < (max-i) ; ++iii)
+            {
+                gpio_base[7] = 1 << 25;
+            }
+        }
+        gpio_base[10] = 1 << 25;
+    }
+    else if(c == '0')
+    {
+        gpio_base[10] = 1 << 25;
+    }
+        return 1;
 }
 
 static struct file_operations led_fops = {
 	.owner = THIS_MODULE,
-	.write = led_write,
-	.read = sushi_read
+	.write = led_write
 };
 
 static int __init init_mod(void)
 {
 	int retval;
-	gpio_base = ioremap_nocache(0x3f200000,0x7e2000b0);
+
+	gpio_base = ioremap_nocache(0x3f200000, 0xA0); //0x3f..:base address, 0xA0: region to map
 
 	const u32 led = 25;
-	const u32 index = led/10;
-	const u32 shift = (led%10)*3;
-	const u32 mask = ~(0x7 << shift);
-	gpio_base[index] = (gpio_base[index] & mask) | (0x1 << shift);
-
+	const u32 index = led/10;//GPFSEL2
+	const u32 shift = (led%10)*3;//15bit
+	const u32 mask = ~(0x7 << shift);//11111111111111000111111111111111
+	gpio_base[index] = (gpio_base[index] & mask) | (0x1 << shift);//001: output flag
+	//11111111111111001111111111111111
+	
 	retval =  alloc_chrdev_region(&dev, 0, 1, "myled");
 	if(retval < 0){
 		printk(KERN_ERR "alloc_chrdev_region failed.\n");
@@ -65,6 +93,7 @@ static int __init init_mod(void)
 	printk(KERN_INFO "%s is loaded. major:%d\n",__FILE__,MAJOR(dev));
 
 	cdev_init(&cdv, &led_fops);
+	cdv.owner = THIS_MODULE;
 	retval = cdev_add(&cdv, dev, 1);
 	if(retval < 0){
 		printk(KERN_ERR "cdev_add failed. major:%d, minor:%d",MAJOR(dev),MINOR(dev));
@@ -88,6 +117,7 @@ static void __exit cleanup_mod(void)
 	class_destroy(cls);
 	unregister_chrdev_region(dev, 1);
 	printk(KERN_INFO "%s is unloaded. major:%d\n",__FILE__,MAJOR(dev));
+	iounmap(gpio_base);
 }
 
 module_init(init_mod);
